@@ -1,0 +1,200 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  todo-list-aws
+
+  Sample SAM Template for todo-list-aws
+  
+  
+# https://awscli.amazonaws.com/v2/documentation/api/latest/reference/cloudformation/deploy/index.html
+# sam deploy --template-file templates.yaml ..... --parameter-overrides ENVIRONMENT=dev TABLE=bucket-name
+Parameters:
+  ENVIRONMENT:
+    Description: "Required. What environment is this? Enter local, dev, pre, pro. Default is local."
+    Type: String
+    Default: "local"
+    AllowedValues:
+      - "local"
+      - "dev"
+      - "pre"
+      - "pro"  
+  
+  
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Runtime: python3.8
+    Timeout: 3
+    Environment:
+      Variables:
+        #DYNAMODB_TABLE: !Sub "todoTable-${ENVIRONMENT}"
+        DYNAMODB_TABLE: "todoTable"
+        STAGE: !Ref ENVIRONMENT
+        AWS_REGION: AWS::Region
+        AWS_ACCOUNTID: AWS::AccountId
+
+
+Resources:
+  TodosDynamoDbTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties: 
+        TableName: !Ref DYNAMODB_TABLE
+        AttributeDefinitions: 
+          - AttributeName: id
+            AttributeType: S
+        KeySchema: 
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput: 
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        Tags:
+          project: todos-table
+          environment: !Ref ENVIRONMENT
+          
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Events:
+        HelloWorld:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /hello
+            Method: get
+            
+  TestFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: todos/
+      Handler: test.test
+      Runtime: python3.8
+      Events:
+        Test:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /test
+            Method: get  
+      Policies:
+        - Statement:
+          - Effect: Allow
+          Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+          Resource: !Sub "arn:aws:dynamodb:AWS::Region:AWS::AccountId:table/${DYNAMODB_TABLE}"
+
+  ListFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: todos/
+      Handler: list.list
+      Runtime: python3.8
+      Events:
+        TodosAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /todos
+            Method: get
+      Policies:
+        - Statement:
+          - Effect: Allow
+          Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+          Resource: !Sub "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNTID}:table/${DYNAMODB_TABLE}"
+
+  CreateFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: todos/
+      Handler: create.create
+      Runtime: python3.8
+      Policies:
+      # Give DynamoDB Full Access to your Lambda Function
+      - AmazonDynamoDBFullAccess
+      Events:
+        TodosAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /todos
+            Method: post    
+
+  GetFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: todos/
+      Handler: get.get
+      Runtime: python3.8
+      Events:
+        TodosAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /todos/{id}
+            Method: get
+            
+  UpdateFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: todos/
+      Handler: update.update
+      Runtime: python3.8
+      Events:
+        TodosAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /todos/{id}
+            Method: put
+          
+            
+  DeleteFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: todos/
+      Handler: delete.delete
+      Runtime: python3.8
+      Events:
+        TodosAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /todos/{id}
+            Method: delete  
+            
+  
+  TranslateFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: todos/
+      Handler: translate.translate
+      Runtime: python3.8
+      Events:
+        TodosAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /todos/{id}/{language}
+            Method: get                       
+
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  HelloWorldFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt HelloWorldFunction.Arn
+  HelloWorldFunctionIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt HelloWorldFunctionRole.Arn
